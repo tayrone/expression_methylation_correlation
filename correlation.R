@@ -2,9 +2,15 @@ library(tidyverse)
 library(gdata)
 library(GEOquery)
 
-#---- Loads and organizes expression data for further use ----
+# Set subgroup first
+investigated_subgroup <- c("Group4" = "g4")
 
-load("./rdatas/shh_network_dictionary.RData")
+load(paste0("./rdatas/", investigated_subgroup, "_network_dictionary.RData"))
+load(paste0("./rdatas/", investigated_subgroup, "_filtered.RData"))
+load(paste0("./rdatas_methylation/", investigated_subgroup, "_probewised.RData"))
+
+
+#---- Loads and organizes expression data for further use ----
 
 colnames(gexp) <- str_remove(colnames(gexp), ".CEL")
 
@@ -15,13 +21,8 @@ gexp <- gexp %>%
   inner_join(dictionary) %>% 
   select(exp_probe_id = probe_id, gene = gene_symbol, everything())
 
-gdata::keep(gexp, sure = T)
-
 
 #---- Organizes methylation data for further use ----
-
-load("./rdatas/shh_filtered.RData")
-load("./rdatas_methylation/shh_probewised.RData")
 
 beta_values <- as.data.frame(getBeta(filtered_quantile_normalized))
 
@@ -37,8 +38,6 @@ beta_values <- beta_values %>%
   inner_join(diff_methylated) %>% 
   select(met_probe_id = probe_id, probe_location, gene, everything()) %>% 
   drop_na(gene)
-
-gdata::keep(gexp, beta_values, sure = T)
 
 
 #---- Prepares expression and beta values data frame for correlation test ----
@@ -78,7 +77,7 @@ beta_gene_format <- beta_values %>%
 gexp <- inner_join(gexp, beta_gene_format) %>% 
   arrange(gene)
 
-gdata::keep(gexp, beta_values, sure = T)
+gdata::keep(gexp, beta_values, investigated_subgroup, sure = T)
 
 
 #---- Identifies which samples did not pass the quality control on either
@@ -90,7 +89,7 @@ accession_expression <-
   accession_expression[["GSE85217_series_matrix.txt.gz"]]@phenoData@data %>% 
   select(title, exp_accession = geo_accession, subgroup = `subgroup:ch1`,
          subtype = `subtype:ch1`) %>% 
-  filter(subgroup == "SHH") %>% 
+  filter(subgroup == names(investigated_subgroup)) %>% 
   as_tibble()
 
 
@@ -132,18 +131,22 @@ accession_dictionary <- accession_dictionary %>%
 #---- Keeps only samples present in the dictionary, while also
 # removing annotating columns ---- 
 
-# This should be edited. Annotating columns must be kept elsewhere
-# for further inspections.
+beta_annotation <- beta_values %>% 
+  select(!starts_with("GSM"))
+
+gexp_annotation <- gexp %>% 
+  select(!starts_with("GSM"))
+
 
 beta_values <- beta_values %>% 
-  select(all_of(pull(accession_dictionary, met_accession))) %>% 
-  as_tibble()
+  select(all_of(pull(accession_dictionary, met_accession)))
 
 gexp <- gexp %>% 
-  select(all_of(pull(accession_dictionary, exp_accession))) %>% 
-  as_tibble()
+  select(all_of(pull(accession_dictionary, exp_accession))) 
 
 
+gdata::keep(accession_dictionary, beta_values, gexp,  
+            beta_annotation, gexp_annotation, sure = T)
 
 #---- Correlation values are finally calculated ----
 
@@ -158,4 +161,7 @@ corr <- function(row){
 cor_result <- map(indexes, corr) %>% 
   map(.f = function(value) value[["estimate"]]) %>% 
   unlist()
+
+beta_annotation <- beta_annotation %>% 
+  mutate(correlation = cor_result)
 
