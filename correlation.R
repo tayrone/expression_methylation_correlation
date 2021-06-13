@@ -5,9 +5,9 @@ library(GEOquery)
 # Set subgroup first
 investigated_subgroup <- c("Group4" = "g4")
 
-load(paste0("./rdatas/", investigated_subgroup, "_network_dictionary.RData"))
-load(paste0("./rdatas/", investigated_subgroup, "_filtered.RData"))
-load(paste0("./rdatas_methylation/", investigated_subgroup, "_probewised.RData"))
+load(paste0("../rdatas/", investigated_subgroup, "_network_dictionary.RData"))
+load(paste0("../rdatas/", investigated_subgroup, "_filtered.RData"))
+load(paste0("../rdatas/", investigated_subgroup, "_probewised.RData"))
 
 
 #---- Loads and organizes expression data for further use ----
@@ -148,7 +148,8 @@ gexp <- gexp %>%
 gdata::keep(accession_dictionary, beta_values, gexp,  
             beta_annotation, gexp_annotation, sure = T)
 
-#---- Correlation values are finally calculated ----
+#---- Correlation values are finally calculated, row by row, taking both 
+# tibbles in parallel ----
 
 indexes <- 1:nrow(gexp)
 
